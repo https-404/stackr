@@ -1,9 +1,92 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { User } from './entities/user.entity';
+import { UserProfile } from './entities/user-profile.entity';
+import { AuthAccount } from './entities/auth-account.entity';
+import { RefreshToken } from './entities/refresh-token.entity';
+import { UserService } from './services/user.service';
+import { UserProfileService } from './services/user-profile.service';
+import { AuthAccountService } from './services/auth-account.service';
+import { RefreshTokenService } from './services/refresh-token.service';
+import { AuthService } from './services/auth.service';
+import { PasswordService } from './services/password.service';
+import { JwtAuthService } from './services/jwt.service';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { GoogleOAuthStrategy } from './strategies/google-oauth.strategy';
+import { UserProfileController } from './controllers/user-profile.controller';
 import { IamService } from './iam.service';
 import { IamController } from './iam.controller';
+import { RolesGuard } from './guards/roles.guard';
 
 @Module({
-  controllers: [IamController],
-  providers: [IamService],
+  imports: [
+    TypeOrmModule.forFeature([User, UserProfile, AuthAccount, RefreshToken]),
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => {
+        const expiresIn = configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');
+        return {
+          secret: configService.get<string>('JWT_SECRET') || 'your-secret-key-change-in-production',
+          signOptions: {
+            expiresIn: expiresIn as any,
+          },
+        };
+      },
+      inject: [ConfigService],
+    }),
+    ConfigModule,
+  ],
+  controllers: [IamController, UserProfileController],
+  providers: [
+    IamService,
+    UserService,
+    UserProfileService,
+    AuthAccountService,
+    RefreshTokenService,
+    AuthService,
+    PasswordService,
+    JwtAuthService,
+    JwtStrategy,
+    {
+      provide: GoogleOAuthStrategy,
+      useFactory: (configService: ConfigService) => {
+        const clientID = configService.get<string>('GOOGLE_CLIENT_ID');
+        const clientSecret = configService.get<string>('GOOGLE_CLIENT_SECRET');
+        if (!clientID || !clientSecret) {
+          // Return a no-op strategy that won't crash the app
+          // It will throw an error when actually used
+          return {
+            authenticate: () => {
+              throw new Error('Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.');
+            },
+          } as any;
+        }
+        try {
+          return new GoogleOAuthStrategy(configService);
+        } catch (error) {
+          // If strategy creation fails, return no-op
+          return {
+            authenticate: () => {
+              throw new Error('Google OAuth is not configured.');
+            },
+          } as any;
+        }
+      },
+      inject: [ConfigService],
+    },
+    RolesGuard,
+  ],
+  exports: [
+    UserService,
+    UserProfileService,
+    AuthAccountService,
+    RefreshTokenService,
+    AuthService,
+    JwtAuthService,
+  ],
 })
 export class IamModule {}

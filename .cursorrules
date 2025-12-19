@@ -1,0 +1,270 @@
+# Stackr Project - Cursor Rules
+
+## Project Overview
+- **Framework**: NestJS
+- **Database**: Supabase (PostgreSQL + Storage)
+- **Language**: TypeScript
+- **Package Manager**: pnpm
+
+## Folder Structure
+
+Follow NestJS module-based architecture. Each feature module should have:
+
+```
+src/
+├── [feature-name]/
+│   ├── dto/
+│   │   ├── create-[feature].dto.ts
+│   │   ├── update-[feature].dto.ts
+│   │   └── [feature]-query.dto.ts (for query params)
+│   ├── entities/
+│   │   └── [feature].entity.ts
+│   ├── [feature].controller.ts
+│   ├── [feature].service.ts
+│   ├── [feature].module.ts
+│   └── [feature].spec.ts (tests)
+├── common/
+│   ├── dto/
+│   │   └── response.dto.ts
+│   ├── decorators/
+│   ├── filters/
+│   ├── guards/
+│   ├── interceptors/
+│   └── pipes/
+├── database/
+│   └── database.module.ts
+└── main.ts
+```
+
+**Rules:**
+- Keep modules self-contained with their own DTOs, entities, controllers, and services
+- Use `common/` folder for shared utilities, DTOs, decorators, filters, guards, interceptors, and pipes
+- Never create flat file structures - always organize by feature/module
+- Each module should have its own folder
+
+## DTOs (Data Transfer Objects)
+
+### Structure Requirements
+
+1. **All DTOs must use class-validator decorators** for validation
+2. **All DTOs must use class-transformer decorators** for transformation
+3. **Use Swagger decorators** (`@ApiProperty`) for documentation
+4. **Create separate DTOs for:**
+   - Create operations: `create-[feature].dto.ts`
+   - Update operations: `update-[feature].dto.ts` (extend `PartialType` from `@nestjs/mapped-types`)
+   - Query parameters: `[feature]-query.dto.ts`
+   - Response DTOs when needed
+
+### Example DTO Pattern:
+
+```typescript
+import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsEmail, IsOptional, MinLength } from 'class-validator';
+
+export class CreateUserDto {
+  @ApiProperty({ description: 'User email address', example: 'user@example.com' })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ description: 'User password', minLength: 8, example: 'password123' })
+  @IsString()
+  @MinLength(8)
+  password: string;
+
+  @ApiProperty({ description: 'User full name', required: false })
+  @IsString()
+  @IsOptional()
+  fullName?: string;
+}
+```
+
+## Standardized Response Format
+
+**ALL API responses must follow this structure:**
+
+```typescript
+{
+  status: number,        // HTTP status code
+  message: string,      // Human-readable message
+  data?: T              // Optional generic data payload
+}
+```
+
+### Implementation:
+
+1. **Create a common Response DTO** in `src/common/dto/response.dto.ts`:
+
+```typescript
+import { ApiProperty } from '@nestjs/swagger';
+
+export class ApiResponseDto<T> {
+  @ApiProperty({ description: 'HTTP status code', example: 200 })
+  status: number;
+
+  @ApiProperty({ description: 'Response message', example: 'Success' })
+  message: string;
+
+  @ApiProperty({ description: 'Response data', required: false })
+  data?: T;
+
+  constructor(status: number, message: string, data?: T) {
+    this.status = status;
+    this.message = message;
+    this.data = data;
+  }
+}
+```
+
+2. **Use in controllers:**
+   - Always return `ApiResponseDto<T>` from controller methods
+   - Use `@ApiResponse` decorator from Swagger for documentation
+   - Example: `return new ApiResponseDto(200, 'User created successfully', userData);`
+
+3. **Error responses** should also follow this format:
+   - Use appropriate HTTP status codes (400, 401, 403, 404, 500, etc.)
+   - Provide clear error messages
+   - Optionally include error details in `data` field
+
+## Swagger/OpenAPI Documentation
+
+### Setup Requirements:
+
+1. **Install required packages:**
+   - `@nestjs/swagger`
+   - `swagger-ui-express` (or `fastify-swagger` if using Fastify)
+
+2. **Configure in `main.ts`:**
+   ```typescript
+   import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+   
+   const config = new DocumentBuilder()
+     .setTitle('Stackr API')
+     .setDescription('API documentation for Stackr')
+     .setVersion('1.0')
+     .addBearerAuth()
+     .build();
+   const document = SwaggerModule.createDocument(app, config);
+   SwaggerModule.setup('api', app, document);
+   ```
+
+3. **Document all endpoints:**
+   - Use `@ApiTags('[feature-name]')` on controllers
+   - Use `@ApiOperation()` for each route handler
+   - Use `@ApiResponse()` for all possible responses
+   - Use `@ApiParam()` for path parameters
+   - Use `@ApiQuery()` for query parameters
+   - Use `@ApiBody()` for request bodies
+   - Use `@ApiBearerAuth()` for protected routes
+
+4. **Document all DTOs:**
+   - Every DTO property must have `@ApiProperty()` decorator
+   - Include descriptions, examples, and validation constraints
+   - Mark optional fields with `required: false`
+
+### Example Controller Pattern:
+
+```typescript
+import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { IamService } from './iam.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { ApiResponseDto } from '../common/dto/response.dto';
+
+@ApiTags('iam')
+@Controller('iam')
+export class IamController {
+  constructor(private readonly iamService: IamService) {}
+
+  @Post('users')
+  @ApiOperation({ summary: 'Create a new user' })
+  @ApiResponse({ status: 201, description: 'User created successfully', type: ApiResponseDto })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  async createUser(@Body() createUserDto: CreateUserDto): Promise<ApiResponseDto<User>> {
+    const user = await this.iamService.createUser(createUserDto);
+    return new ApiResponseDto(201, 'User created successfully', user);
+  }
+}
+```
+
+## Supabase Integration
+
+### Database Connection:
+
+1. **Use Supabase client** for database operations
+2. **Create a Supabase service** in `database/` module
+3. **Use Supabase Storage client** for file operations
+4. **Environment variables:**
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY` (for admin operations)
+
+### Patterns:
+
+- Use Supabase client for queries instead of TypeORM (if migrating)
+- Use Row Level Security (RLS) policies in Supabase
+- Use Supabase Storage for file uploads/downloads
+- Handle Supabase errors appropriately and convert to standardized response format
+
+## Code Style & Best Practices
+
+1. **Validation:**
+   - Always use `ValidationPipe` globally (already configured)
+   - Use `whitelist: true` to strip unknown properties
+   - Add validation decorators to all DTOs
+
+2. **Error Handling:**
+   - Use NestJS exception filters for consistent error responses
+   - Convert all errors to standardized `ApiResponseDto` format
+   - Use appropriate HTTP status codes
+
+3. **Type Safety:**
+   - Use TypeScript strictly
+   - Avoid `any` types
+   - Use proper typing for all DTOs and responses
+
+4. **Naming Conventions:**
+   - Files: kebab-case (e.g., `create-user.dto.ts`)
+   - Classes: PascalCase (e.g., `CreateUserDto`)
+   - Variables/functions: camelCase (e.g., `createUser`)
+   - Constants: UPPER_SNAKE_CASE (e.g., `MAX_FILE_SIZE`)
+
+5. **Imports:**
+   - Group imports: NestJS, third-party, local
+   - Use absolute imports when possible (configured in tsconfig.json)
+
+6. **Testing:**
+   - Write unit tests for services
+   - Write e2e tests for controllers
+   - Use `.spec.ts` suffix for test files
+
+## When Creating New Features
+
+1. Generate module using NestJS CLI: `nest g module [feature-name]`
+2. Create folder structure with `dto/`, `entities/` subfolders
+3. Create DTOs with Swagger decorators
+4. Implement service with business logic
+5. Implement controller with Swagger documentation
+6. Use standardized `ApiResponseDto` for all responses
+7. Add proper error handling
+8. Write tests
+
+## Prohibited Patterns
+
+- ❌ Don't return raw data from controllers (always use `ApiResponseDto`)
+- ❌ Don't skip DTO validation
+- ❌ Don't create endpoints without Swagger documentation
+- ❌ Don't use flat file structures
+- ❌ Don't mix database logic in controllers
+- ❌ Don't use `any` types
+- ❌ Don't skip error handling
+
+## Required Patterns
+
+- ✅ Always use DTOs for request/response
+- ✅ Always document with Swagger
+- ✅ Always use standardized response format
+- ✅ Always validate inputs
+- ✅ Always handle errors gracefully
+- ✅ Always follow NestJS module structure
+- ✅ Always use TypeScript strict mode
+
