@@ -20,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { UserGameService } from '../services/user-game.service';
 import { AddUserGameDto } from '../dto/add-user-game.dto';
+import { AddUserGamesDto } from '../dto/add-user-games.dto';
 import { ApiResponseDto } from '../../common/dto/response.dto';
 import { JwtAuthGuard } from '../../iam/guards/jwt-auth.guard';
 import type { Request } from 'express';
@@ -32,24 +33,28 @@ export class UserGameController {
   constructor(private readonly userGameService: UserGameService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Add a game to your collection' })
-  @ApiBody({ type: AddUserGameDto })
+  @ApiOperation({ summary: 'Add one or multiple games to your collection' })
+  @ApiBody({ type: AddUserGamesDto })
   @ApiResponse({
     status: 201,
-    description: 'Game added to collection successfully',
+    description: 'Games added to collection successfully',
     type: ApiResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 404, description: 'Game not found' })
-  @ApiResponse({ status: 409, description: 'Game already in collection' })
+  @ApiResponse({ status: 404, description: 'One or more games not found' })
+  @ApiResponse({ status: 409, description: 'All games are already in your collection' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async addGame(
+  async addGames(
     @Req() req: Request,
-    @Body() addUserGameDto: AddUserGameDto,
+    @Body() addUserGamesDto: AddUserGamesDto,
   ): Promise<ApiResponseDto<any>> {
     const userId = (req.user as any).id;
-    const result = await this.userGameService.addGameToUser(userId, addUserGameDto);
-    return new ApiResponseDto(HttpStatus.CREATED, 'Game added to collection successfully', result);
+    const result = await this.userGameService.addGamesToUser(userId, addUserGamesDto.gameIds);
+    const message =
+      result.length === 1
+        ? 'Game added to collection successfully'
+        : `${result.length} games added to collection successfully`;
+    return new ApiResponseDto(HttpStatus.CREATED, message, result);
   }
 
   @Get()
