@@ -16,6 +16,8 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AuthService } from './services/auth.service';
+import { UserProfileService } from './services/user-profile.service';
+import { UserProfile } from './entities/user-profile.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -28,7 +30,10 @@ import type { Request } from 'express';
 @ApiTags('iam')
 @Controller('iam')
 export class IamController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly userProfileService: UserProfileService,
+  ) {}
 
   @Post('register')
   @ApiOperation({ summary: 'Register a new user with email and password' })
@@ -62,15 +67,26 @@ export class IamController {
 
   @Get('auth/google')
   @UseGuards(GoogleOAuthGuard)
-  @ApiOperation({ summary: 'Initiate Google OAuth login' })
-  @ApiResponse({ status: 302, description: 'Redirects to Google OAuth' })
+  @ApiOperation({
+    summary: 'Initiate Google OAuth login',
+    description:
+      '⚠️ This endpoint must be accessed directly in a browser, not through Swagger. It will redirect to Google for authentication.',
+  })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirects to Google OAuth. Access this URL directly in your browser: http://localhost:3000/iam/auth/google',
+  })
   async googleAuth() {
     // Guard redirects to Google
   }
 
   @Get('auth/google/callback')
   @UseGuards(GoogleOAuthGuard)
-  @ApiOperation({ summary: 'Google OAuth callback' })
+  @ApiOperation({
+    summary: 'Google OAuth callback',
+    description:
+      '⚠️ This is the callback URL that Google redirects to after authentication. Do not call this directly. It is automatically called by Google after successful authentication.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Google OAuth login successful',
@@ -119,7 +135,7 @@ export class IamController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get current authenticated user' })
+  @ApiOperation({ summary: 'Get current authenticated user with full profile' })
   @ApiResponse({
     status: 200,
     description: 'User retrieved successfully',
@@ -127,6 +143,36 @@ export class IamController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getMe(@Req() req: Request): Promise<ApiResponseDto<any>> {
-    return new ApiResponseDto(HttpStatus.OK, 'User retrieved successfully', req.user);
+    const userId = (req.user as any).id;
+    const user = req.user as any;
+
+    // Try to get profile, if it doesn't exist, return null values
+    let profile: UserProfile | null = null;
+    try {
+      profile = await this.userProfileService.findOne(userId);
+    } catch (error) {
+      // Profile doesn't exist, will use null values below
+    }
+
+    // Return combined user and profile data with all fields, even if null
+    const userData = {
+      id: user.id,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      isActive: user.isActive,
+      role: user.role,
+      profile: {
+        username: profile?.username ?? null,
+        firstName: profile?.firstName ?? null,
+        lastName: profile?.lastName ?? null,
+        tagline: profile?.tagline ?? null,
+        bio: profile?.bio ?? null,
+        avatarUrl: profile?.avatarUrl ?? null,
+        createdAt: profile?.createdAt ?? null,
+        updatedAt: profile?.updatedAt ?? null,
+      },
+    };
+
+    return new ApiResponseDto(HttpStatus.OK, 'User retrieved successfully', userData);
   }
 }

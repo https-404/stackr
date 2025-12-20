@@ -57,7 +57,10 @@ export class UserProfileService {
     });
   }
 
-  async update(userId: string, updateProfileDto: UpdateUserProfileDto): Promise<UserProfile> {
+  async update(
+    userId: string,
+    updateProfileDto: UpdateUserProfileDto & { avatarUrl?: string },
+  ): Promise<UserProfile> {
     const profile = await this.findOne(userId);
 
     // Check if username is being changed and if it's taken

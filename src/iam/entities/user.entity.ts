@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { UserProfile } from './user-profile.entity';
 import { AuthAccount } from './auth-account.entity';
+import { UserGame } from '../../games/entities/user-game.entity';
 
 export enum UserRole {
   USER = 'user',
@@ -48,5 +49,8 @@ export class User {
 
   @OneToMany(() => AuthAccount, (authAccount) => authAccount.user, { cascade: true })
   authAccounts: AuthAccount[];
+
+  @OneToMany(() => UserGame, (userGame) => userGame.user, { cascade: true })
+  userGames: UserGame[];
 }
 

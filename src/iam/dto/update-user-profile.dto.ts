@@ -36,10 +36,5 @@ export class UpdateUserProfileDto extends PartialType(
   @IsOptional()
   @MaxLength(500)
   bio?: string;
-
-  @ApiProperty({ description: 'Avatar URL', required: false, example: 'https://example.com/avatar.jpg' })
-  @IsString()
-  @IsOptional()
-  avatarUrl?: string;
 }
 

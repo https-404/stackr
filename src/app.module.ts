@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { IamModule } from './iam/iam.module';
 import { DatabaseModule } from './database/database.module';
+import { GamesModule } from './games/games.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { DatabaseModule } from './database/database.module';
     }),
     IamModule,
     DatabaseModule,
+    GamesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -20,6 +20,7 @@ import { UserProfileController } from './controllers/user-profile.controller';
 import { IamService } from './iam.service';
 import { IamController } from './iam.controller';
 import { RolesGuard } from './guards/roles.guard';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { RolesGuard } from './guards/roles.guard';
       inject: [ConfigService],
     }),
     ConfigModule,
+    CommonModule,
   ],
   controllers: [IamController, UserProfileController],
   providers: [
@@ -51,33 +53,7 @@ import { RolesGuard } from './guards/roles.guard';
     PasswordService,
     JwtAuthService,
     JwtStrategy,
-    {
-      provide: GoogleOAuthStrategy,
-      useFactory: (configService: ConfigService) => {
-        const clientID = configService.get<string>('GOOGLE_CLIENT_ID');
-        const clientSecret = configService.get<string>('GOOGLE_CLIENT_SECRET');
-        if (!clientID || !clientSecret) {
-          // Return a no-op strategy that won't crash the app
-          // It will throw an error when actually used
-          return {
-            authenticate: () => {
-              throw new Error('Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.');
-            },
-          } as any;
-        }
-        try {
-          return new GoogleOAuthStrategy(configService);
-        } catch (error) {
-          // If strategy creation fails, return no-op
-          return {
-            authenticate: () => {
-              throw new Error('Google OAuth is not configured.');
-            },
-          } as any;
-        }
-      },
-      inject: [ConfigService],
-    },
+    GoogleOAuthStrategy,
     RolesGuard,
   ],
   exports: [

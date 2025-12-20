@@ -15,6 +15,12 @@ async function bootstrap() {
   
   const app = await NestFactory.create(AppModule);
   
+  // Enable CORS
+  app.enableCors({
+    origin: true, // Allow all origins in development
+    credentials: true,
+  });
+  
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   
   const config = new DocumentBuilder()

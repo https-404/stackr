@@ -32,7 +32,7 @@ export class JwtAuthService {
     };
 
     const accessToken = this.jwtService.sign(accessTokenPayload, {
-      expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m') as any,
+      expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '30m') as any,
     });
 
     const refreshToken = this.jwtService.sign(refreshTokenPayload, {
