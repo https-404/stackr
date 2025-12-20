@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { UserGame } from '../entities/user-game.entity';
 import { Game } from '../entities/game.entity';
 import { AddUserGameDto } from '../dto/add-user-game.dto';
@@ -42,6 +42,49 @@ export class UserGameService {
     });
 
     return await this.userGameRepository.save(userGame);
+  }
+
+  async addGamesToUser(userId: string, gameIds: string[]): Promise<UserGame[]> {
+    // Remove duplicates from the request
+    const uniqueGameIds = [...new Set(gameIds)];
+
+    // Check if all games exist
+    const games = await this.gameRepository.find({
+      where: { id: In(uniqueGameIds) },
+    });
+
+    if (games.length !== uniqueGameIds.length) {
+      const foundGameIds = games.map((g) => g.id);
+      const missingGameIds = uniqueGameIds.filter((id) => !foundGameIds.includes(id));
+      throw new NotFoundException(
+        `Games not found: ${missingGameIds.join(', ')}`,
+      );
+    }
+
+    // Check which games user already has
+    const existingUserGames = await this.userGameRepository.find({
+      where: {
+        userId,
+        gameId: In(uniqueGameIds),
+      },
+    });
+
+    const existingGameIds = existingUserGames.map((ug) => ug.gameId);
+    const newGameIds = uniqueGameIds.filter((id) => !existingGameIds.includes(id));
+
+    if (newGameIds.length === 0) {
+      throw new ConflictException('All games are already in your collection');
+    }
+
+    // Create user games for new games
+    const userGames = newGameIds.map((gameId) =>
+      this.userGameRepository.create({
+        userId,
+        gameId,
+      }),
+    );
+
+    return await this.userGameRepository.save(userGames);
   }
 
   async getUserGames(userId: string) {
